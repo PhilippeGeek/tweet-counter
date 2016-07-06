@@ -3,6 +3,7 @@
  */
 var Twit = require('twit');
 var querystring = require("querystring");
+var dateFormat = require('dateformat');
 
 var T = new Twit({
     consumer_key: process.env.consumer_key,
@@ -14,27 +15,7 @@ var T = new Twit({
 
 var tweets = {};
 var count = 0;
-
-function loadNext(prevData){
-    if(prevData.search_metadata.next_results != undefined)
-        T.get('search/tweets',querystring.parse(prevData.search_metadata.next_results.substring(1)), function(error, data, response){
-            data.statuses.forEach(function(e){
-                if(tweets[e.user.screen_name.toString()] == undefined){
-                    tweets[e.user.screen_name.toString()] = 1;
-                } else {
-                    tweets[e.user.screen_name.toString()]++;
-                }
-            });
-            count += data.statuses.length;
-            if(data.statuses.length >= 100){
-                loadNext(data);
-            } else {
-                endedCallback();
-            }
-        });
-}
-
-T.get('search/tweets', { q: '#'+process.env.hashtag+' since:2016-7-6 -RT', count:100 }, function(error, data, response){
+var twitter_callback = function(error, data, response){
     data.statuses.forEach(function(e){
         if(tweets[e.user.screen_name.toString()] == undefined){
             tweets[e.user.screen_name.toString()] = 1;
@@ -43,8 +24,16 @@ T.get('search/tweets', { q: '#'+process.env.hashtag+' since:2016-7-6 -RT', count
         }
     });
     count += data.statuses.length;
-    loadNext(data);
-});
+    if(data.search_metadata.next_results != undefined){
+        T.get('search/tweets',querystring.parse(data.search_metadata.next_results.substring(1)), twitter_callback);
+    } else {
+        endedCallback();
+    }
+};
+
+var date = (new Date());
+var today = dateFormat(date, "yyyy-mm-dd");
+T.get('search/tweets', { q: '#'+process.env.hashtag+' since:'+today+' -RT', count:100 }, twitter_callback);
 
 function endedCallback(){
     var tuples = [];
